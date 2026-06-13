@@ -1,0 +1,3 @@
+# --- project-scaffold: docs/temp 临时区不入库（README 除外） ---
+docs/temp/*
+!docs/temp/README.md

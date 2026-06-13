@@ -30,6 +30,7 @@ skills-repo/
 | Skill | 作用 | 何时触发 |
 | --- | --- | --- |
 | [skill-meta](.agents/skills/skill-meta/SKILL.md) | 所有 `SKILL.md` 的**写作元规范**——「写其它 skill 的 skill」 | 新增 / 修改 / 优化任一 `SKILL.md`，或提到「写个 skill / skill 规范 / authoring」时 |
+| [project-scaffold](.agents/skills/project-scaffold/SKILL.md) | 项目目录**规范脚手架与审计器**：先审计、后补齐、不覆盖，统一 `CLAUDE.md` / `docs` 五区 / `.agents`·`.claude`·`.cursor` | 提到「规范目录 / 初始化项目结构 / 项目脚手架 / 重构目录 / 补齐文档结构」时 |
 
 > 随着探索推进，新的实用 skill 会陆续补充到此表。
 
