@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
-# sync-skills.sh —— 把 skills 真相源 .agents/skills/ 镜像到 .claude/skills 与 .cursor/skills。
+# sync-skills.sh —— 把 .agents/ 下的 skills 与 rules 真相源镜像到 .claude/ 与 .cursor/。
 #
-# 单一真相源：只改 .agents/skills/<name>/，然后运行本脚本。
-# .claude/skills、.cursor/skills 是生成物，会被本脚本整体重建，请勿手改。
-# 注意：本脚本不碰 .cursor/rules/（Cursor 规则是独立体系，手动维护）。
+# 单一真相源：
+#   - skills：只改 .agents/skills/<name>/
+#   - rules ：只改 .agents/rules/*.md
+# 然后运行本脚本。
+#
+# 镜像规则：
+#   .agents/skills → .claude/skills、.cursor/skills    （整体镜像）
+#   .agents/rules  → .claude/rules                       （整体镜像，保持 .md 扩展名）
+#   .agents/rules  → .cursor/rules                       （递归同步，.md → .mdc 扩展名）
+#
+# .claude/skills、.cursor/skills、.claude/rules、.cursor/rules 都是生成物，会被本脚本整体重建，请勿手改。
 #
 # 用法：在项目根目录执行   bash .agents/sync-skills.sh
 set -euo pipefail
@@ -11,17 +19,11 @@ set -euo pipefail
 # 定位项目根（脚本位于 <root>/.agents/sync-skills.sh）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SRC="$ROOT/.agents/skills"
 
-if [ ! -d "$SRC" ]; then
-  echo "✗ 找不到真相源目录：$SRC" >&2
-  echo "  请在项目根运行，且确保 .agents/skills/ 存在。" >&2
-  exit 1
-fi
+SKILLS_SRC="$ROOT/.agents/skills"
+RULES_SRC="$ROOT/.agents/rules"
 
-TARGETS=("$ROOT/.claude/skills" "$ROOT/.cursor/skills")
-
-copy_tree() {
+mirror_tree() {
   # $1 src dir, $2 dest dir —— 优先 rsync，回退到 cp
   if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete "$1/" "$2/"
@@ -32,10 +34,42 @@ copy_tree() {
   fi
 }
 
-for DEST in "${TARGETS[@]}"; do
-  mkdir -p "$DEST"
-  copy_tree "$SRC" "$DEST"
-  echo "✓ 已同步 → ${DEST#$ROOT/}"
-done
+mirror_rules_to_mdc() {
+  # $1 src dir (.agents/rules), $2 dest dir (.cursor/rules)
+  # 递归把 $1 下所有 .md 同结构生成 .mdc 到 $2，并清理孤儿 .mdc / 空子目录。
+  mkdir -p "$2"
+  find "$2" -type f -name '*.mdc' -delete 2>/dev/null || true
+  (cd "$1" && find . -type f -name '*.md' -print0) | while IFS= read -r -d '' rel; do
+    rel="${rel#./}"
+    dest_dir="$2/$(dirname "$rel")"
+    base="$(basename "$rel" .md)"
+    mkdir -p "$dest_dir"
+    cp "$1/$rel" "$dest_dir/${base}.mdc"
+  done
+  find "$2" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+}
 
-echo "完成：.agents/skills → .claude/skills, .cursor/skills"
+# ---- skills ----
+if [ -d "$SKILLS_SRC" ]; then
+  for DEST in "$ROOT/.claude/skills" "$ROOT/.cursor/skills"; do
+    mkdir -p "$DEST"
+    mirror_tree "$SKILLS_SRC" "$DEST"
+    echo "✓ 已同步 skills → ${DEST#$ROOT/}"
+  done
+else
+  echo "⚠ 跳过 skills：$SKILLS_SRC 不存在"
+fi
+
+# ---- rules ----
+if [ -d "$RULES_SRC" ]; then
+  mkdir -p "$ROOT/.claude/rules"
+  mirror_tree "$RULES_SRC" "$ROOT/.claude/rules"
+  echo "✓ 已同步 rules  → .claude/rules"
+
+  mirror_rules_to_mdc "$RULES_SRC" "$ROOT/.cursor/rules"
+  echo "✓ 已同步 rules  → .cursor/rules（.md → .mdc）"
+else
+  echo "⚠ 跳过 rules：$RULES_SRC 不存在"
+fi
+
+echo "完成"
